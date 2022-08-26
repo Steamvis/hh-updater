@@ -1,6 +1,6 @@
 usage
 ```bash
-docker run --env EMAIL=hh@email.ru --env PASSWORD=hhpass --name=hhupdater steamvis/hh_updater
+docker run -d --env EMAIL=hh@email.ru --env PASSWORD=hhpass --name=hhupdater steamvis/hh_updater
 
 ```
 
