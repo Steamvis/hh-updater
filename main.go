@@ -30,17 +30,16 @@ func init() {
 }
 
 func main() {
-	ctx, cancel := chromedp.NewContext(
-		context.Background(),
-		// chromedp.WithDebugf(log.Printf),
-	)
-	defer cancel()
-
 	var response string
 	var screenshot []byte
 	ticker := time.NewTicker(time.Minute * 241)
 	defer ticker.Stop()
 	for ; true; <-ticker.C {
+		ctx, cancel := chromedp.NewContext(
+			context.Background(),
+			chromedp.WithDebugf(log.Printf),
+		)
+
 		log.Println("[INFO] tick")
 		err := chromedp.Run(ctx,
 			chromedp.Emulate(device.IPhone13ProMax),
@@ -53,6 +52,8 @@ func main() {
 		if err := ioutil.WriteFile("fullScreenshot.png", screenshot, 0o644); err != nil {
 			log.Fatal(err)
 		}
+
+		cancel()
 	}
 }
 
@@ -90,5 +91,4 @@ func tasks(res *string, screenshotRes *[]byte) chromedp.Tasks {
 
 		chromedp.FullScreenshot(screenshotRes, 90),
 	}
-
 }
