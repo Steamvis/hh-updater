@@ -37,7 +37,7 @@ func main() {
 	for ; true; <-ticker.C {
 		ctx, cancel := chromedp.NewContext(
 			context.Background(),
-			chromedp.WithDebugf(log.Printf),
+			// chromedp.WithDebugf(log.Printf),
 		)
 
 		log.Println("[INFO] tick")
