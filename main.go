@@ -3,18 +3,23 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/device"
 )
 
 const (
-	loginPageUrl  = "https://hh.ru/account/login"
-	resumePageUrl = "https://hh.ru/applicant/resumes"
+	loginPageUrl            string = "https://hh.ru/account/login"
+	resumePageUrl           string = "https://hh.ru/applicant/resumes"
+	loginButton             string = `//button[@data-qa="account-login-submit"]`
+	inputEmail              string = `//input[@name="login"]`
+	inputPassword           string = `//input[@data-qa="login-input-password"]`
+	loginWithPasswordButton string = `//button[@data-qa="expand-login-by-password"]`
+	upButtonWithText        string = `//button[@data-qa="resume-update-button_actions" and text()="Поднять в поиске"]`
 )
 
 var (
@@ -30,65 +35,53 @@ func init() {
 }
 
 func main() {
-	var response string
-	var screenshot []byte
+	var clickUpResumeNodes []*cdp.Node
 	ticker := time.NewTicker(time.Minute * 241)
 	defer ticker.Stop()
 	for ; true; <-ticker.C {
+		log.Println("[INFO] tick")
 		ctx, cancel := chromedp.NewContext(
 			context.Background(),
 			// chromedp.WithDebugf(log.Printf),
 		)
 
-		log.Println("[INFO] tick")
 		err := chromedp.Run(ctx,
 			chromedp.Emulate(device.IPhone13ProMax),
-			tasks(&response, &screenshot),
+			// Open Login Page
+			chromedp.Navigate(loginPageUrl),
+			chromedp.WaitVisible(inputEmail),
+
+			// Fill Form
+			chromedp.SendKeys(inputEmail, email),
+			// Click Button Login With Password
+			chromedp.Click(loginWithPasswordButton),
+
+			chromedp.WaitVisible(inputPassword),
+			chromedp.SendKeys(inputPassword, password),
+
+			// Click Login Button
+			chromedp.Click(loginButton),
+
+			// Wait Load Page
+			chromedp.Sleep(5*time.Second),
+
+			// Open Resume Page
+			chromedp.Navigate(resumePageUrl),
+			// Search Up Buttons
+			chromedp.Nodes(upButtonWithText, &clickUpResumeNodes, chromedp.AtLeast(0)),
 		)
+
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		if err := ioutil.WriteFile("fullScreenshot.png", screenshot, 0o644); err != nil {
-			log.Fatal(err)
+		for _, cdp := range clickUpResumeNodes {
+			err := chromedp.Run(ctx, chromedp.MouseClickNode(cdp))
+			if err != nil {
+				log.Fatalln(err)
+			}
 		}
 
 		cancel()
-	}
-}
-
-func tasks(res *string, screenshotRes *[]byte) chromedp.Tasks {
-	inputEmail := `//input[@name="login"]`
-	inputPassword := `//input[@data-qa="login-input-password"]`
-	loginWithPasswordButton := `//button[@data-qa="expand-login-by-password"]`
-	return chromedp.Tasks{
-		// Open Login Page
-		chromedp.Navigate(loginPageUrl),
-		chromedp.WaitVisible(inputEmail),
-
-		// Fill Form
-		chromedp.SendKeys(inputEmail, email),
-		// Click Button Login With Password
-		chromedp.Click(loginWithPasswordButton),
-
-		chromedp.WaitVisible(inputPassword),
-		chromedp.SendKeys(inputPassword, password),
-
-		// Click Login Button
-		chromedp.Click(
-			`button[data-qa="account-login-submit"]`,
-			chromedp.ByQuery,
-		),
-
-		// Wait Load New Page
-		chromedp.Sleep(2 * time.Second),
-
-		// Open Resume Page
-		chromedp.Navigate(resumePageUrl),
-
-		// Up Resume
-		chromedp.Click(`//button[@data-qa="resume-update-button_actions"]`),
-
-		chromedp.FullScreenshot(screenshotRes, 90),
 	}
 }
