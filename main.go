@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
 
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/device"
 )
@@ -19,7 +19,7 @@ const (
 	inputEmail              string = `//input[@name="login"]`
 	inputPassword           string = `//input[@data-qa="login-input-password"]`
 	loginWithPasswordButton string = `//button[@data-qa="expand-login-by-password"]`
-	upButtonWithText        string = `//button[@data-qa="resume-update-button_actions" and text()="Поднять в поиске"]`
+	upButton                string = `//button[@data-qa="resume-update-button_actions"]`
 )
 
 var (
@@ -35,14 +35,14 @@ func init() {
 }
 
 func main() {
-	var clickUpResumeNodes []*cdp.Node
+	var screenshot []byte
 	ticker := time.NewTicker(time.Minute * 241)
 	defer ticker.Stop()
 	for ; true; <-ticker.C {
 		log.Println("[INFO] tick")
 		ctx, cancel := chromedp.NewContext(
 			context.Background(),
-			// chromedp.WithDebugf(log.Printf),
+			chromedp.WithDebugf(log.Printf),
 		)
 
 		err := chromedp.Run(ctx,
@@ -67,19 +67,20 @@ func main() {
 
 			// Open Resume Page
 			chromedp.Navigate(resumePageUrl),
-			// Search Up Buttons
-			chromedp.Nodes(upButtonWithText, &clickUpResumeNodes, chromedp.AtLeast(0)),
+
+			// Search Up Button
+			chromedp.WaitVisible(upButton),
+			chromedp.Click(upButton),
+
+			chromedp.FullScreenshot(&screenshot, 90),
 		)
 
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		for _, cdp := range clickUpResumeNodes {
-			err := chromedp.Run(ctx, chromedp.MouseClickNode(cdp))
-			if err != nil {
-				log.Fatalln(err)
-			}
+		if err := ioutil.WriteFile("fullScreenshot.png", screenshot, 0644); err != nil {
+			log.Fatalln(err)
 		}
 
 		cancel()
