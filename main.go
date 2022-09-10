@@ -3,28 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
 
 	"github.com/chromedp/chromedp"
-	"github.com/chromedp/chromedp/device"
+
+	"hhupdater/internal/auth"
+	"hhupdater/internal/resume"
+	"hhupdater/internal/screenshot"
 )
 
 const (
-	loginPageUrl            string = "https://hh.ru/account/login"
-	resumePageUrl           string = "https://hh.ru/applicant/resumes"
-	loginButton             string = `//button[@data-qa="account-login-submit"]`
-	inputEmail              string = `//input[@name="login"]`
-	inputPassword           string = `//input[@data-qa="login-input-password"]`
-	loginWithPasswordButton string = `//button[@data-qa="expand-login-by-password"]`
-	upButton                string = `//button[@data-qa="resume-update-button_actions"]`
+	scheduleTimeInMinutes time.Duration = 60
 )
 
 var (
-	email    string = os.Getenv("EMAIL")
-	password string = os.Getenv("PASSWORD")
+	email     string = os.Getenv("EMAIL")
+	password  string = os.Getenv("PASSWORD")
+	debugMode string = os.Getenv("DEBUG")
 )
 
 func init() {
@@ -35,54 +32,40 @@ func init() {
 }
 
 func main() {
-	var screenshot []byte
-	ticker := time.NewTicker(time.Minute * 241)
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+
+	ticker := time.NewTicker(time.Minute * scheduleTimeInMinutes)
 	defer ticker.Stop()
 	for ; true; <-ticker.C {
-		log.Println("[INFO] tick")
-		ctx, cancel := chromedp.NewContext(
-			context.Background(),
-			chromedp.WithDebugf(log.Printf),
-		)
+		log.Println("[INFO] Tick")
 
-		err := chromedp.Run(ctx,
-			chromedp.Emulate(device.IPhone13ProMax),
-			// Open Login Page
-			chromedp.Navigate(loginPageUrl),
-			chromedp.WaitVisible(inputEmail),
+		if isAuthorized := auth.IsAuthorized(ctx); !isAuthorized {
+			if ctx != nil {
+				cancel()
+			}
 
-			// Fill Form
-			chromedp.SendKeys(inputEmail, email),
-			// Click Button Login With Password
-			chromedp.Click(loginWithPasswordButton),
-
-			chromedp.WaitVisible(inputPassword),
-			chromedp.SendKeys(inputPassword, password),
-
-			// Click Login Button
-			chromedp.Click(loginButton),
-
-			// Wait Load Page
-			chromedp.Sleep(5*time.Second),
-
-			// Open Resume Page
-			chromedp.Navigate(resumePageUrl),
-
-			// Search Up Button
-			chromedp.WaitVisible(upButton),
-			chromedp.Click(upButton),
-
-			chromedp.FullScreenshot(&screenshot, 90),
-		)
-
-		if err != nil {
-			log.Fatalln(err)
+			ctx, cancel = newCtx()
+			err := auth.Login(ctx, email, password)
+			if err != nil {
+				screenshot.Make(ctx, "errorLogin")
+				log.Fatal("[ERROR] ", err)
+			}
+			log.Println("[INFO] SuccessLogin")
+			screenshot.Make(ctx, "successLogin")
 		}
 
-		if err := ioutil.WriteFile("fullScreenshot.png", screenshot, 0644); err != nil {
-			log.Fatalln(err)
-		}
+		resume.Up(ctx)
+		screenshot.Make(ctx, "upResume")
+	}
+}
 
-		cancel()
+func newCtx() (context.Context, context.CancelFunc) {
+	if debugMode == "chromedp" {
+		return chromedp.NewContext(context.Background(), chromedp.WithDebugf(log.Printf))
+	} else {
+		return chromedp.NewContext(context.Background())
 	}
 }
