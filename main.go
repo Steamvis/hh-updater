@@ -16,6 +16,7 @@ import (
 
 const (
 	scheduleTimeInMinutes time.Duration = 60
+	contextTimeout time.Duration = time.Minute * 20
 )
 
 var (
@@ -63,9 +64,13 @@ func main() {
 }
 
 func newCtx() (context.Context, context.CancelFunc) {
+	ctx, _ := context.WithTimeout(context.Background(), contextTimeout)
 	if debugMode == "chromedp" {
-		return chromedp.NewContext(context.Background(), chromedp.WithDebugf(log.Printf))
+		return chromedp.NewContext(
+			ctx,
+			chromedp.WithDebugf(log.Printf),
+		)
 	} else {
-		return chromedp.NewContext(context.Background())
+		return chromedp.NewContext(ctx)
 	}
 }
